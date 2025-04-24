@@ -1,0 +1,8 @@
+[package]
+name = "eMARS"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.31.1"
+macroquad = "0.4.14"
