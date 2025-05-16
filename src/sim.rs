@@ -1,36 +1,30 @@
+#![allow(unused_mut, unused_imports)]
+
 use corewars_core::load_file::{Opcode, Field, Instruction};
 use corewars_parser as parser;
 use std::fs::read_to_string;
 
-#[allow(unused_mut)]
-
-fn print_core(core: Vec<Instruction>) {
-    for instruction in core {
-        println!("{}", instruction.to_string());
-    }
-}
-
-pub fn init(warrior_a_path: &str, warrior_b_path: &str, coresize: isize) {
-    let warrior_a_file_string= read_to_string(warrior_a_path).expect("");
+pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: isize) -> Vec<Instruction> {
+    let warrior_a_file_string= read_to_string(warrior_a_path.as_str()).expect("Could not find/access Warrior A's file");
     let warrior_a = match corewars_parser::parse(warrior_a_file_string.as_str()) { // this one's yoinked straight from the source
         parser::Result::Ok(warrior, warnings) => { 
-            println!("{:?}", &warnings);
+            println!("Warrior A warnings: {:?}", &warnings);
             Ok(warrior)
         }
         parser::Result::Err(warrior, warnings) => {
-            println!("{:?}", &warnings);
+            println!("Warrior A warnings: {:?}", &warnings);
             Err(warrior)
         }
     }.unwrap();
 
-    let warrior_b_file_string= read_to_string(warrior_b_path).expect("");
+    let warrior_b_file_string= read_to_string(warrior_b_path.as_str()).expect("Could not find/access Warrior B's file");
     let warrior_b = match corewars_parser::parse(warrior_b_file_string.as_str()) { // this one's yoinked straight from the source
         parser::Result::Ok(warrior, warnings) => { 
-            println!("{:?}", &warnings);
+            println!("Warrior B warnings: {:?}", &warnings);
             Ok(warrior)
         }
         parser::Result::Err(warrior, warnings) => {
-            println!("{:?}", &warnings);
+            println!("Warrior B warnings: {:?}", &warnings);
             Err(warrior)
         }
     }.unwrap();
@@ -60,6 +54,6 @@ pub fn init(warrior_a_path: &str, warrior_b_path: &str, coresize: isize) {
         core[index] = warrior_b_instructions[i].clone();
     }
 
-    print_core(core);
+    return core;
 
 }
