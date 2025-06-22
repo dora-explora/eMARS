@@ -1,7 +1,7 @@
 #![allow(unused_mut, unused_imports)]
 
 use std::env::args;
-use corewars_core::load_file::{Opcode, Field, Instruction};
+use corewars_core::load_file::{Instruction};
 
 mod sim;
 
