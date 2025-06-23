@@ -7,7 +7,6 @@ edition = "2021"
 corewars = "0.2.0"
 corewars-core = "0.2.0"
 corewars-parser = "0.2.0"
+eframe = "0.31.1"
 egui = "0.21.0"
-egui-macroquad = "0.15.0"
-macroquad = { version = "0.3.26", default-features = false }
 rand = "0.9.1"
