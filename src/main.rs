@@ -41,7 +41,6 @@ fn instruction_color(instruction: &Instruction) -> Color32 {
 }
 
 fn label_color(y: f32, square_size: f32) -> Color32 {
-    println!("label y: {y}");
     if (y/square_size).floor() % 4. == 0. {
         return Color32::LIGHT_GRAY;
     } else if (y/square_size).floor() % 2. == 0. {
