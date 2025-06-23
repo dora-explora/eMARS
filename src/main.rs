@@ -2,8 +2,8 @@
 
 use std::env::args;
 use corewars_core::load_file::{Instruction};
-use macroquad::{prelude::*, prelude::vec2, ui::root_ui, ui::hash, math::Rect, ui::widgets::Window};
-use egui::*;
+use macroquad::{prelude::*, ui::root_ui, ui::hash, ui::widgets::Window};
+use egui::{*, vec2, Rect, Color32};
 use egui_macroquad::*;
 
 mod sim;
@@ -30,39 +30,42 @@ async fn main() {
     loop {
         clear_background(WHITE);
 
-        let window_height = screen_height()-20.0;
-        let window_width = screen_height()*0.8-20.0;
-        Window::new(hash!(), vec2(0.0, 0.0), vec2(window_width, window_height),)
-        .titlebar(true)
-        .label("Core View")
-        .movable(true)
-        .ui(&mut *root_ui(), |ui| {
-            let mut canvas = ui.canvas();
+        let mut window_height = screen_height()-50.0;
+        let mut window_width = screen_height()*0.8;
+        
+        egui_macroquad::ui(|egui_ctx| {
 
-            let mut x = 2.0;
-            let mut y = 2.0;
-            for i in 0..coresize {
-                canvas.rect(Rect::new(x, y, 4.0, 4.0), RED, RED);
-                x += 5.0;
-                if x > window_width - 5.0 {
-                    x = 2.0;
-                    y += 5.0;
-                    if y > window_height + 5.0 {
-                        break;
+            egui::Window::new("Core View")
+            .movable(true)
+            .resizable(true)
+            .show(egui_ctx, |ui|{
+                let (response, painter) = ui.allocate_painter(vec2(window_width, window_height), Sense::hover());
+                
+                let top_left = response.rect.min;
+                let mut x = 2.0 + top_left.x;
+                let mut y = 2.0 + top_left.y;
+                for i in 0..coresize {
+                    // draws the rectangle at pos (x, y) and size (4, 4) in red
+                    painter.rect_filled(
+                        Rect::from_min_size(pos2(x, y), vec2(4., 4.)), 
+                        Rounding::none(), 
+                        Color32::RED
+                    );
+                    // moves next square's x 5 pixels to the left
+                    x += 5.0;
+                    if x > window_width - 5.0 + top_left.x { // if next square will overflow,
+                        x = 2.0 + top_left.x; // set it's x back to the beginning
+                        y += 5.0; // and move it down a row.
+                        if y > window_height + 5.0 { // if next row will overflow,
+                            break; // stop rendering the squares.
+                        }
                     }
                 }
-            }
+            });
+
         });
 
-        // egui_macroquad::ui(|egui_ctx| {
-
-        //     egui::Window::new("Hello World!").show(egui_ctx, |ui|{
-        //         ui.label("and hello down here too");
-        //     });
-
-        // });
-        // egui_macroquad::draw();
-
+        egui_macroquad::draw();
         next_frame().await;
     }
 }
