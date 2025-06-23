@@ -40,6 +40,17 @@ fn instruction_color(instruction: &Instruction) -> Color32 {
     }
 }
 
+fn label_color(y: f32, square_size: f32) -> Color32 {
+    println!("label y: {y}");
+    if (y/square_size).floor() % 4. == 0. {
+        return Color32::LIGHT_GRAY;
+    } else if (y/square_size).floor() % 2. == 0. {
+        return Color32::GRAY;
+    } else {
+        return Color32::DARK_GRAY;
+    }
+}
+
 impl eframe::App for EmarsApp {
     fn update(&mut self, context: &egui::Context, _: &mut eframe::Frame) {
         let default_size: Vec2;
@@ -96,7 +107,7 @@ impl eframe::App for EmarsApp {
                         Align2::LEFT_TOP,
                         format!("{:04}", i + 1),
                         FontId::monospace(label_font_size),
-                        Color32::LIGHT_GRAY
+                        label_color(y- response.rect.min.y, square_size_outside)
                     ); }
 
                     if (y - response.rect.min.y) > window_height - square_size_inside { // if next row will overflow,
