@@ -74,7 +74,7 @@ impl eframe::App for EmarsApp {
             let (response, painter) = ui.allocate_painter(vec2(painter_width, painter_height), Sense::hover());
             let window_width = response.rect.width();
             let window_height = response.rect.height();
-            println!("{window_width} x {window_height}s");
+            // println!("{window_width} x {window_height}s");
 
             painter.text(
                 pos2(response.rect.min.x, response.rect.min.y),
