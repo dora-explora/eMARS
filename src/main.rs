@@ -2,7 +2,7 @@
 
 use std::env::args;
 use std::cmp::max;
-use corewars_core::load_file::{Instruction};
+use corewars_core::load_file::*;
 use eframe::egui;
 use egui::*;
 
@@ -30,13 +30,18 @@ struct EmarsApp {
     coresize: isize
 }
 
+fn instruction_color(instruction: &Instruction) -> Color32 {
+    if *instruction == Instruction::default() {
+        return Color32::DARK_GRAY;
+    } else {
+        return Color32::RED;
+    }
+}
+
 impl eframe::App for EmarsApp {
     fn update(&mut self, context: &egui::Context, _: &mut eframe::Frame) {
         egui::Window::new("Core View")
-        // .movable(true)
-        // .resizable(true)
-        .default_size(vec2(400., 400.))
-        .title_bar(false)
+        .default_size(vec2(501., 402.))
         .show(context, |ui|{
             
             let painter_width = ui.available_width();
@@ -44,26 +49,25 @@ impl eframe::App for EmarsApp {
             
             let (response, painter) = ui.allocate_painter(vec2(painter_width, painter_height), Sense::hover());
             
-            let top_left = response.rect.min;
-            let mut x = 2. + top_left.x;
-            let mut y = 2. + top_left.y;
-            
-            let window_width = response.rect.max.x;
-            let window_height = response.rect.max.y;
+            let mut x = 2. + response.rect.min.x; // calculates *objective* x position
+            let mut y = 2. + response.rect.min.y; // calculates *objective* y position
+            let window_width = response.rect.max.x - response.rect.min.x;
+            let window_height = response.rect.max.y - response.rect.min.y;
             
             for i in 0..self.coresize {
                 // draws the rectangle at pos (x, y) and size (4, 4) in red
                 painter.rect_filled(
                     Rect::from_min_size(pos2(x, y), vec2(4., 4.)), 
                     CornerRadius::same(0), 
-                    Color32::RED
+                    instruction_color(&self.core[i as usize])
                 );
                 // moves next square's x 5 pixels to the left
                 x += 5.;
-                if (x - top_left.x) > window_width - 5. { // if next square will overflow,
-                    x = 2. + top_left.x; // set it's x back to the beginning
+                if (x - response.rect.min.x) > window_width { // if next square will overflow,
+                    x = 2. + response.rect.min.x; // set it's x back to the beginning
                     y += 5.; // and move it down a row.
-                    if y > window_height + 5. { // if next row will overflow,
+                    if (y - response.rect.min.y) > window_height + 0. { // if next row will overflow,
+                        println!("boo");
                         break; // stop rendering the squares.
                     }
                 }
