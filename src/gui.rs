@@ -1,14 +1,14 @@
 use std::cmp::max;
-use corewars_core::load_file::*;
 use eframe::egui;
 use egui::*;
-use crate::sim::Process;
+use crate::sim::{Process, Instruction};
 
 const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::LIGHT_BLUE, Color32::YELLOW, Color32::RED];
 
 pub(crate) struct EmarsApp {
     pub(crate) core: Vec<Instruction>,
     pub(crate) coresize: isize,
+    pub(crate) default_instruction: Instruction,
     pub(crate) core_view_size: usize,
     pub(crate) teams: u8,
     pub(crate) processes: Vec<Process>,
@@ -83,7 +83,7 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
             }
 
             let instruction_color: Color32;
-            if app.core[i as usize] == Instruction::default() {
+            if app.core[i as usize] == app.default_instruction {
                 instruction_color = Color32::DARK_GRAY;
             } else {
                 instruction_color = Color32::from_rgb(200, 0, 0);
