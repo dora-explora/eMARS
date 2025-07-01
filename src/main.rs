@@ -12,7 +12,7 @@ mod gui;
 //     }
 // }
 
-fn load_core(args: Vec<String>) -> (isize, Vec<Instruction>) {
+fn load_core(args: Vec<String>) -> (isize, (Vec<Instruction>, Vec<sim::Process>)) {
     let coresize: isize;
     match args.len() {
         ..=2 => panic!("Not enough arguments"),
@@ -31,16 +31,16 @@ impl eframe::App for gui::EmarsApp {
 
 fn main() {
     let args: Vec<String> = args().collect();
-    let (mut coresize, mut core) = load_core(args);    
-    let core_view_size = 2;
+    let (mut coresize, (mut core, mut processes)) = load_core(args);
 
+    let core_view_size = 2;
     match eframe::run_native(
         "eMARS", 
         eframe::NativeOptions {
             viewport: eframe::egui::ViewportBuilder::default().with_title("eMARS").with_maximized(true),
             ..Default::default()
         },
-        Box::new(|_cc| Ok(Box::new(gui::EmarsApp { core, coresize, core_view_size })))
+        Box::new(|_cc| Ok(Box::new(gui::EmarsApp { core, coresize, core_view_size, teams: processes.len() as u8, processes })))
     ) {
         Err(error) => panic!("Error while rendering UI: {error}"),
         Ok(_) => assert!(true)

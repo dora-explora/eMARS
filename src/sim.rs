@@ -5,7 +5,13 @@ use corewars_parser as parser;
 use std::fs::read_to_string;
 use rand::Rng;
 
-pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: isize) -> Vec<Instruction> {
+#[derive(Clone, Copy)]
+pub struct Process {
+    pub(crate) team: u8,
+    pub(crate) pointer: usize
+}
+
+pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: isize) -> (Vec<Instruction>, Vec<Process>) {
     // if coresize <= 400 { panic!("Core too small") }
 
     let warrior_a_file_string= read_to_string(warrior_a_path.as_str()).expect("Could not find/access Warrior A's file");
@@ -46,9 +52,10 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: isize) -> 
         index = (signed_index % coresize) as usize;
         core[index] = warrior_a_instructions[i].clone();
     }
+    let process_a = Process { team: 0, pointer: warrior_a_origin as usize };
 
     let mut rng = rand::rng();
-    let warrior_b_origin: isize = match warrior_b.program.origin {Some(n) => n as isize, None => 0}; // why is it minus? no clue but it works sooooo
+    let warrior_b_origin: isize = match warrior_b.program.origin {Some(n) => n as isize, None => 0}; 
     let warrior_b_lower_bound = (warrior_a_instructions.len() as isize - warrior_a_origin + coresize/80) as usize;
     let warrior_b_upper_bound = (coresize - warrior_a_origin - coresize/80) as usize;
     let warrior_b_offset = rng.random_range(warrior_b_lower_bound..warrior_b_upper_bound) as isize;
@@ -59,7 +66,59 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: isize) -> 
         index = (signed_index % coresize) as usize;
         core[index] = warrior_b_instructions[i].clone();
     }
+    let process_b = Process { team: 1, pointer: (warrior_b_offset) as usize };
 
-    return core;
+    return (core, vec![process_a, process_b]);
+}
 
+pub fn step(old_core: Vec<Instruction>, old_processes: Vec<Process>, teams: u8) -> (Vec<Instruction>, Vec<Process>) {
+    let mut new_core = old_core.clone();
+    let mut new_processes = old_processes.clone();
+    
+    for team in 0..teams {
+        for process in &old_processes {
+            if process.team == team {
+                let instruction = &old_core[process.pointer];
+
+                if instruction.opcode == Opcode::Dat {
+
+                } else if instruction.opcode == Opcode::Mov {
+                    
+                } else if instruction.opcode == Opcode::Add {
+                    
+                } else if instruction.opcode == Opcode::Sub {
+                    
+                } else if instruction.opcode == Opcode::Mul {
+                    
+                } else if instruction.opcode == Opcode::Div {
+                    
+                } else if instruction.opcode == Opcode::Mod {
+                    
+                } else if instruction.opcode == Opcode::Jmp {
+                    
+                } else if instruction.opcode == Opcode::Jmz {
+                    
+                } else if instruction.opcode == Opcode::Djn {
+                    
+                } else if instruction.opcode == Opcode::Spl {
+                    
+                } else if instruction.opcode == Opcode::Cmp || instruction.opcode == Opcode::Seq {
+                    
+                } else if instruction.opcode == Opcode::Sne {
+                    
+                } else if instruction.opcode == Opcode::Slt {
+                    
+                // } else if instruction.opcode == Opcode::Ldp { // excuse me corewa.rs??
+                    
+                // } else if instruction.opcode == Opcode::Sdp {
+                    
+                } else if instruction.opcode == Opcode::Nop {
+                    
+                }
+                break;
+            }
+        }
+    }
+
+    return (new_core, new_processes);
 }

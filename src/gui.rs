@@ -2,29 +2,16 @@ use std::cmp::max;
 use corewars_core::load_file::*;
 use eframe::egui;
 use egui::*;
+use crate::sim::Process;
+
+const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::LIGHT_BLUE, Color32::YELLOW, Color32::RED];
 
 pub(crate) struct EmarsApp {
     pub(crate) core: Vec<Instruction>,
     pub(crate) coresize: isize,
-    pub(crate) core_view_size: usize
-}
-
-fn instruction_color(instruction: &Instruction) -> Color32 {
-    if *instruction == Instruction::default() {
-        return Color32::DARK_GRAY;
-    } else {
-        return Color32::RED;
-    }
-}
-
-fn label_color(y: f32, square_size: f32) -> Color32 {
-    if (y/square_size).floor() % 4. == 0. {
-        return Color32::LIGHT_GRAY;
-    } else if (y/square_size).floor() % 2. == 0. {
-        return Color32::GRAY;
-    } else {
-        return Color32::DARK_GRAY;
-    }
+    pub(crate) core_view_size: usize,
+    pub(crate) teams: u8,
+    pub(crate) processes: Vec<Process>,
 }
 
 pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
@@ -36,9 +23,9 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
     let y_margin: f32;
     let stroke_size: f32;
     match app.core_view_size {
-        0 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(519., 416.), 6., 4., 5., 20., 16., 0.5),
-        1 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(822., 655.), 8., 6., 8., 24., 17., 1.),
-        2 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(1026., 817.), 10., 8., 10., 28., 18., 1.5),
+        0 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(519., 416.), 6., 4., 5., 20., 16., 1.),
+        1 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(822., 655.), 8., 6., 8., 24., 17., 1.5),
+        2 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(1026., 817.), 10., 8., 10., 28., 18., 2.),
         _ => panic!("Invalid core view size of {}", app.core_view_size)
     };
     egui::Window::new("Core View")
@@ -73,28 +60,40 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
             hovered = true;
         }
 
-        println!("hover_pos: {} x {}", hover_pos.x, hover_pos.y);
+        // println!("hover_pos: {} x {}", hover_pos.x, hover_pos.y);
 
         let mut x = response.rect.min.x + x_margin; // calculates *objective* x position
         let mut y = response.rect.min.y + y_margin; // calculates *objective* y position
 
         for i in 0..app.coresize {
-            let stroke: Stroke;
+            let mut stroke = Stroke::NONE;
+
+            // checks if square is being pointed to by any processes
+            for process in &app.processes {
+                if process.pointer == i as usize {
+                    stroke = Stroke::new(stroke_size, TEAM_COLORS[process.team as usize]);
+                }
+            }
+
             // checks if this square is being hovered
-            
             if hovered && x <= hover_pos.x && (x + square_size_outside) >= hover_pos.x && y <= hover_pos.y && (y + square_size_outside) >= hover_pos.y {
                 hovered_text = app.core[i as usize].to_string();
-                println!("hovered_text: {hovered_text}");
+                // println!("hovered_text: {hovered_text}");
                 stroke = Stroke::new(stroke_size, Color32::YELLOW);
+            }
+
+            let instruction_color: Color32;
+            if app.core[i as usize] == Instruction::default() {
+                instruction_color = Color32::DARK_GRAY;
             } else {
-                stroke = Stroke::NONE;
+                instruction_color = Color32::from_rgb(200, 0, 0);
             }
 
             // draws the rectangle at pos (x, y) and size (4, 4) in red
             painter.rect(
                 Rect::from_min_size(pos2(x, y), vec2(square_size_inside, square_size_inside)), 
                 CornerRadius::same(1), 
-                instruction_color(&app.core[i as usize]),
+                instruction_color,
                 stroke,
                 StrokeKind::Inside
             );
@@ -105,12 +104,21 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
                 x = response.rect.min.x + x_margin; // set it's x back to the beginning
                 y += square_size_outside; // and move it down a row.
 
+                let label_color: Color32;
+                if ((y - response.rect.min.y)/square_size_outside).floor() % 4. == 0. {
+                    label_color = Color32::LIGHT_GRAY;
+                } else if ((y - response.rect.min.y)/square_size_outside).floor() % 2. == 0. {
+                    label_color = Color32::GRAY;
+                } else {
+                    label_color = Color32::DARK_GRAY;
+                }
+
                 if i != 7999 { painter.text(
                     pos2(response.rect.min.x, y - 2.),
                     Align2::LEFT_TOP,
                     format!("{:04}", i + 1),
                     FontId::monospace(label_font_size),
-                    label_color(y- response.rect.min.y, square_size_outside)
+                    label_color
                 ); }
 
                 if (y - response.rect.min.y) > window_height - square_size_inside { // if next row will overflow,
