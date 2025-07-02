@@ -1,17 +1,37 @@
 use std::cmp::max;
 use eframe::egui;
 use egui::*;
-use crate::sim::{Process, Instruction};
+use crate::sim::{Process, Instruction, Field};
 
 const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::LIGHT_BLUE, Color32::YELLOW, Color32::RED];
 
 pub(crate) struct EmarsApp {
     pub(crate) core: Vec<Instruction>,
-    pub(crate) coresize: isize,
+    pub(crate) coresize: usize,
     pub(crate) default_instruction: Instruction,
     pub(crate) core_view_size: usize,
     pub(crate) teams: u8,
     pub(crate) processes: Vec<Process>,
+}
+
+fn display_instruction(instruction: Instruction, coresize: usize) -> String {
+    format!(
+        // Example output:
+        // MOV.AB  $-100,  $1
+        // |----->||----->|
+        "{op:<8}{a:<8}{b}",
+        op = format!("{}.{}", instruction.opcode, instruction.modifier),
+        a = display_field(instruction.field_a, coresize as isize),
+        b = display_field(instruction.field_b, coresize as isize),
+    )
+}
+
+fn display_field(field: Field, coresize_isize: isize) -> String {
+    let mut value = field.value as isize;
+    if value > coresize_isize / 2 {
+        value -= coresize_isize
+    }
+    format!("{}{}", field.address_mode, value)
 }
 
 pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
@@ -77,7 +97,7 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
 
             // checks if this square is being hovered
             if hovered && x <= hover_pos.x && (x + square_size_outside) >= hover_pos.x && y <= hover_pos.y && (y + square_size_outside) >= hover_pos.y {
-                hovered_text = app.core[i as usize].to_string();
+                hovered_text = display_instruction(app.core[i as usize], app.coresize);
                 // println!("hovered_text: {hovered_text}");
                 stroke = Stroke::new(stroke_size, Color32::YELLOW);
             }
