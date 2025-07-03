@@ -4,6 +4,7 @@ use corewars_core::load_file::{AddressMode, Modifier, Field as OtherField, Instr
 use corewars_parser as parser;
 use egui::Label;
 use std::fs::read_to_string;
+use std::collections::{vec_deque, VecDeque};
 use rand::Rng;
 
 #[derive(Clone, Copy)]
@@ -62,7 +63,7 @@ pub fn negative_mod(n: isize, modulus: usize) -> usize {
     return (value % modulus as isize) as usize
 }
 
-pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, default_instruction: Instruction) -> (Vec<Instruction>, Vec<Process>) {
+pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, default_instruction: Instruction) -> (Vec<Instruction>, Vec<VecDeque<Process>>) {
     // if coresize <= 400 { panic!("Core too small") }
 
     let warrior_a_file_string= read_to_string(warrior_a_path.as_str()).expect("Could not find/access Warrior A's file");
@@ -96,9 +97,7 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, def
     let mut signed_index: isize;
     let mut index: usize;
     for i in 0..warrior_a_instructions.len() {
-        signed_index = i as isize - warrior_a_origin as isize;
-        index = negative_mod(signed_index, coresize);
-        core[index] = translate_instruction(warrior_a_instructions[i].clone(), coresize);
+        core[i] = translate_instruction(warrior_a_instructions[i].clone(), coresize);
     }
     let process_a = Process { team: 0, pointer: warrior_a_origin as usize };
 
@@ -115,14 +114,13 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, def
     }
     let process_b = Process { team: 1, pointer: (warrior_b_offset) as usize };
 
-    return (core, vec![process_a, process_b]);
+    return (core, vec![VecDeque::from([process_a]), VecDeque::from([process_b])]);
 }
 
-pub fn step(mut core: Vec<Instruction>, mut processes: Vec<Process>) -> (Vec<Instruction>, Vec<Process>) { // steps with the first process in the processes queue and returns the new state of the core and 
+fn step_process(core: &mut Vec<Instruction>, process_queue: &mut VecDeque<Process>) { // steps with the first process in the process queue
     
-    let process = processes[0];
+    let process = &mut process_queue[0];
     let instruction = core[process.pointer].clone();
-    let mut new_core = core.clone();
 
     // process predecrements for field a
     if instruction.field_a.address_mode == AddressMode::PreDecIndirectA {
@@ -139,8 +137,8 @@ pub fn step(mut core: Vec<Instruction>, mut processes: Vec<Process>) -> (Vec<Ins
     }
 
     // big if block for all the opcodes
-    if instruction.opcode == Opcode::Dat { // kills the process
-        processes.remove(0); // this assumes that the current process is at the front!!!
+    if instruction.opcode == Opcode::Dat { // kills the first process (this process)
+        process_queue.remove(0);
     } else if instruction.opcode == Opcode::Mov { // moves instruction/values specified by A field to instruction specified by B field
         let source_instruction_pointer: usize; // pointer to first instruction of MOV; the instruction to be copied (relative address)
         let dest_instruction_pointer: usize; // pointer to second instruction of MOV; the instruction to be copied to (relative address)
@@ -187,7 +185,9 @@ pub fn step(mut core: Vec<Instruction>, mut processes: Vec<Process>) -> (Vec<Ins
             dest_instruction_pointer = core[instruction.field_b.value + process.pointer].field_b.value + instruction.field_b.value
         }
 
-        new_core[dest_instruction_pointer + process.pointer] = core[source_instruction_pointer + process.pointer] 
+        core[dest_instruction_pointer + process.pointer] = core[source_instruction_pointer + process.pointer];
+        process.pointer += 1;
+        process.pointer %= core.len();
 
     } else if instruction.opcode == Opcode::Add {
         
@@ -221,5 +221,37 @@ pub fn step(mut core: Vec<Instruction>, mut processes: Vec<Process>) -> (Vec<Ins
         
     };
 
-    return (new_core, processes);
+    // process postincrements for field a
+    if instruction.field_a.address_mode == AddressMode::PostIncIndirectA {
+        core[instruction.field_a.value].field_a.value += 1;
+    } else if instruction.field_a.address_mode == AddressMode::PostIncIndirectB {
+        core[instruction.field_a.value].field_b.value += 1;
+    }
+
+    // process postincrements for field b
+    if instruction.field_b.address_mode == AddressMode::PostIncIndirectA {
+        core[instruction.field_b.value].field_a.value += 1;
+    } else if instruction.field_b.address_mode == AddressMode::PostIncIndirectB {
+        core[instruction.field_b.value].field_b.value += 1;
+    }
+}
+
+pub fn part_step(core: &mut Vec<Instruction>, teams_process_queues: &mut Vec<VecDeque<Process>>, turn: &mut usize) { // steps the team whose turn it is
+    let mut process_queue = &mut teams_process_queues[*turn];
+    step_process(core, process_queue);
+    if process_queue.len() != 0 { 
+        process_queue.rotate_left(1); 
+        *turn += 1;
+        *turn %= teams_process_queues.len();
+    } else { 
+        println!("Warrior {turn} is dead!");
+        teams_process_queues.remove(*turn);
+    }
+} 
+
+pub fn full_step(core: &mut Vec<Instruction>, teams_process_queues: &mut Vec<VecDeque<Process>>, turn: &mut usize) { // steps until the turn is back to 0
+    part_step(core, teams_process_queues, turn);
+    while *turn != 0 { 
+        part_step(core, teams_process_queues, turn) 
+    }
 }

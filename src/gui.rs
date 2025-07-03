@@ -1,18 +1,10 @@
 use std::cmp::max;
 use eframe::egui;
 use egui::*;
-use crate::sim::{Process, Instruction, Field};
+use crate::EmarsApp;
+use crate::sim::{Instruction, Field, part_step, full_step};
 
 const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::LIGHT_BLUE, Color32::YELLOW, Color32::RED];
-
-pub(crate) struct EmarsApp {
-    pub(crate) core: Vec<Instruction>,
-    pub(crate) coresize: usize,
-    pub(crate) default_instruction: Instruction,
-    pub(crate) core_view_size: usize,
-    pub(crate) teams: u8,
-    pub(crate) processes: Vec<Process>,
-}
 
 fn display_instruction(instruction: Instruction, coresize: usize) -> String {
     format!(
@@ -89,9 +81,11 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
             let mut stroke = Stroke::NONE;
 
             // checks if square is being pointed to by any processes
-            for process in &app.processes {
-                if process.pointer == i as usize {
-                    stroke = Stroke::new(stroke_size, TEAM_COLORS[process.team as usize]);
+            for process_queue in &app.teams_process_queues {
+                for process in process_queue {
+                    if process.pointer == i as usize {
+                        stroke = Stroke::new(stroke_size, TEAM_COLORS[process.team as usize]);
+                    }
                 }
             }
 
@@ -156,5 +150,13 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
             Color32::LIGHT_GRAY
         )
 
+    });
+}
+
+pub fn sim_manager(app: &mut EmarsApp, context: &egui::Context) {
+    egui::Window::new("Simulation Manager")
+    .show(context, |ui|{
+        if ui.button("Partial Step").clicked() { part_step(&mut app.core, &mut app.teams_process_queues, &mut app.turn) }
+        if ui.button("Full Step").clicked() { full_step(&mut app.core, &mut app.teams_process_queues, &mut app.turn) }
     });
 }

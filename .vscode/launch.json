@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["warriors/test.red", "warriors/imp.red"],
+            "args": ["warriors/parser test A.red", "warriors/imp.red"],
             "cwd": "${workspaceFolder}"
         },
         {
