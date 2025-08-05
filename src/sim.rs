@@ -243,41 +243,169 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 }
             }
         }
-        Opcode::Sub => {match instruction.modifier {
-            Modifier::A => {
-                minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
+        Opcode::Sub => {
+            match instruction.modifier {
+                Modifier::A => {
+                    core[destination].field_a.value = minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
+                }
+                Modifier::B => {
+                    core[destination].field_b.value = minus_mod(core[destination].field_b.value, core[source].field_b.value, coresize);
+                }
+                Modifier::AB => {
+                    core[destination].field_b.value = minus_mod(core[destination].field_b.value, core[source].field_a.value, coresize);
+                }
+                Modifier::BA => {
+                    core[destination].field_a.value = minus_mod(core[destination].field_a.value, core[source].field_b.value, coresize);
+                }
+                Modifier::F | Modifier::I => {
+                    core[destination].field_a.value = minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
+                    core[destination].field_b.value = minus_mod(core[destination].field_b.value, core[source].field_b.value, coresize);
+                }
+                Modifier::X => {
+                    core[destination].field_a.value = minus_mod(core[destination].field_a.value, core[source].field_b.value, coresize);
+                    core[destination].field_b.value = minus_mod(core[destination].field_b.value, core[source].field_a.value, coresize);
+                }
             }
-            Modifier::B => {
-                minus_mod(core[destination].field_b.value, core[source].field_b.value, coresize);
-            }
-            Modifier::AB => {
-                minus_mod(core[destination].field_b.value, core[source].field_a.value, coresize);
-            }
-            Modifier::BA => {
-                minus_mod(core[destination].field_a.value, core[source].field_b.value, coresize);
-            }
-            Modifier::F | Modifier::I => {
-                minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
-                minus_mod(core[destination].field_b.value, core[source].field_b.value, coresize);
-            }
-            Modifier::X => {
-                minus_mod(core[destination].field_a.value, core[source].field_b.value, coresize);
-                minus_mod(core[destination].field_b.value, core[source].field_a.value, coresize);
-            }
-        }
-
         }
         Opcode::Mul => {
+            match instruction.modifier {
+                Modifier::A => {
+                    core[destination].field_a.value *= core[source].field_a.value;
+                    core[destination].field_a.value %= coresize;
+                },
+                Modifier::B => {
+                    core[destination].field_b.value *= core[source].field_b.value;
+                    core[destination].field_b.value %= coresize;
 
+                },
+                Modifier::AB => {
+                    core[destination].field_b.value *= core[source].field_a.value;
+                    core[destination].field_b.value %= coresize;
+
+                },
+                Modifier::BA => {
+                    core[destination].field_a.value *= core[source].field_b.value;
+                    core[destination].field_a.value %= coresize;
+                },
+                Modifier::F | Modifier::I => {
+                    core[destination].field_a.value *= core[source].field_a.value;
+                    core[destination].field_a.value %= coresize;
+                    core[destination].field_b.value *= core[source].field_b.value;
+                    core[destination].field_b.value %= coresize;
+                },
+                Modifier::X => {
+                    core[destination].field_b.value *= core[source].field_a.value;
+                    core[destination].field_b.value %= coresize;
+                    core[destination].field_a.value *= core[source].field_b.value;
+                    core[destination].field_a.value %= coresize;
+                }
+            }
         }
         Opcode::Div => {
-
+            match instruction.modifier {
+                Modifier::A => {
+                    if core[source].field_a.value == 0 { dead = true }
+                    else {
+                        core[destination].field_a.value /= core[source].field_a.value;
+                    }
+                },
+                Modifier::B => {
+                    if core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_b.value /= core[source].field_b.value;
+                    }
+                },
+                Modifier::AB => {
+                    if core[source].field_a.value == 0 { dead = true }
+                    else {
+                        core[destination].field_b.value /= core[source].field_a.value;
+                    }
+                },
+                Modifier::BA => {
+                    if core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_a.value /= core[source].field_b.value;
+                    }
+                },
+                Modifier::F | Modifier::I => {
+                    if core[source].field_a.value == 0 || core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_a.value /= core[source].field_a.value;
+                        core[destination].field_b.value /= core[source].field_b.value;
+                    }
+                },
+                Modifier::X => {
+                    if core[source].field_a.value == 0 || core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_b.value /= core[source].field_a.value;
+                        core[destination].field_a.value /= core[source].field_b.value;
+                    }
+                }
+            }
         }
         Opcode::Mod => {
-
+            match instruction.modifier {
+                Modifier::A => {
+                    if core[source].field_a.value == 0 { dead = true }
+                    else {
+                        core[destination].field_a.value %= core[source].field_a.value;
+                    }
+                },
+                Modifier::B => {
+                    if core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_b.value %= core[source].field_b.value;
+                    }
+                },
+                Modifier::AB => {
+                    if core[source].field_a.value == 0 { dead = true }
+                    else {
+                        core[destination].field_b.value %= core[source].field_a.value;
+                    }
+                },
+                Modifier::BA => {
+                    if core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_a.value %= core[source].field_b.value;
+                    }
+                },
+                Modifier::F | Modifier::I => {
+                    if core[source].field_a.value == 0 || core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_a.value %= core[source].field_a.value;
+                        core[destination].field_b.value %= core[source].field_b.value;
+                    }
+                },
+                Modifier::X => {
+                    if core[source].field_a.value == 0 || core[source].field_b.value == 0 { dead = true }
+                    else {
+                        core[destination].field_b.value %= core[source].field_a.value;
+                        core[destination].field_a.value %= core[source].field_b.value;
+                    }
+                }
+            }
         }
         Opcode::Jmp => {
+            match instruction.modifier {
+                Modifier::A => {
 
+                },
+                Modifier::B => {
+
+                },
+                Modifier::AB => {
+
+                },
+                Modifier::BA => {
+
+                },
+                Modifier::F | Modifier::I => {
+
+                },
+                Modifier::X => {
+
+                }
+            }
         }
         Opcode::Jmz => {
 
