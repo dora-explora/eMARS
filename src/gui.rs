@@ -3,6 +3,7 @@ use eframe::egui;
 use egui::*;
 use crate::EmarsApp;
 use crate::sim::{Instruction, Field, part_step, full_step};
+// use std::thread::spawn;
 
 const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::LIGHT_BLUE, Color32::YELLOW, Color32::RED];
 
@@ -26,7 +27,7 @@ fn display_field(field: Field, coresize_isize: isize) -> String {
     format!("{}{}", field.address_mode, value)
 }
 
-pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
+pub fn core_view(app: &mut EmarsApp, context: &Context) {
     let default_size: Vec2;
     let label_font_size: f32;
     let square_size_inside: f32;
@@ -40,7 +41,7 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
         2 => (default_size, label_font_size, square_size_inside, square_size_outside, x_margin, y_margin, stroke_size) = (vec2(1026., 817.), 10., 8., 10., 28., 18., 2.),
         _ => panic!("Invalid core view size of {}", app.core_view_size)
     };
-    egui::Window::new("Core View")
+    Window::new("Core View")
     .default_size(default_size)
     .show(context, |ui|{
         
@@ -62,10 +63,7 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
 
         let hovered: bool;
         let mut hovered_text = String::new();
-        let hover_pos: Pos2 = match response.hover_pos() {
-            Some(pos) => pos,
-            None => pos2(0., 0.)
-        };
+        let hover_pos: Pos2 = response.hover_pos().unwrap_or_else(|| pos2(0., 0.));
         if hover_pos == pos2(0., 0.) {
             hovered = false;
         } else {
@@ -83,7 +81,7 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
             // checks if square is being pointed to by any processes
             for process_queue in &app.teams_process_queues {
                 for process in process_queue {
-                    if process.pointer == i as usize {
+                    if process.pointer == i {
                         stroke = Stroke::new(stroke_size, TEAM_COLORS[process.team as usize]);
                     }
                 }
@@ -91,13 +89,13 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
 
             // checks if this square is being hovered
             if hovered && x <= hover_pos.x && (x + square_size_outside) >= hover_pos.x && y <= hover_pos.y && (y + square_size_outside) >= hover_pos.y {
-                hovered_text = display_instruction(app.core[i as usize], app.coresize);
+                hovered_text = display_instruction(app.core[i], app.coresize);
                 // println!("hovered_text: {hovered_text}");
                 stroke = Stroke::new(stroke_size, Color32::YELLOW);
             }
 
             let instruction_color: Color32;
-            if app.core[i as usize] == app.default_instruction {
+            if app.core[i] == app.default_instruction {
                 instruction_color = Color32::DARK_GRAY;
             } else {
                 instruction_color = Color32::from_rgb(200, 0, 0);
@@ -153,10 +151,11 @@ pub fn core_view(app: &mut EmarsApp, context: &egui::Context) {
     });
 }
 
-pub fn sim_manager(app: &mut EmarsApp, context: &egui::Context) {
-    egui::Window::new("Simulation Manager")
+pub fn sim_manager(app: &mut EmarsApp, context: &Context) {
+    Window::new("Simulation Manager")
     .show(context, |ui|{
-        if ui.button("Partial Step").clicked() { part_step(&mut app.core, &mut app.teams_process_queues, &mut app.turn) }
-        if ui.button("Full Step").clicked() { full_step(&mut app.core, &mut app.teams_process_queues, &mut app.turn) }
+        if ui.button("Partial Step").clicked() { part_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn) }
+        if ui.button("Full Step").clicked() { full_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn) }
+        if ui.checkbox(&mut app.playing, "Play").clicked() { /* spawn thread */ }
     });
 }

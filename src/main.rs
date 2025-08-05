@@ -1,11 +1,11 @@
 #![allow(unused_mut)]
 
 use std::env::args;
+// use std::time::{Duration, Instant};
+// use std::thread::sleep;
 use crate::sim::{Instruction, Field, Process};
 use corewars_core::load_file::{Opcode, AddressMode, Modifier};
 use std::collections::VecDeque;
-// use std::time::*;
-// use std::thread::sleep;
 
 mod sim;
 mod gui;
@@ -16,7 +16,9 @@ pub(crate) struct EmarsApp {
     pub(crate) default_instruction: Instruction, // stores the default instruction for the core, usually DAT.F #0, #0
     pub(crate) core_view_size: usize, // stores the visual size of the core view
     pub(crate) teams_process_queues: Vec<VecDeque<Process>>, // contains each teams process queue in order
-    pub(crate) turn: usize // stores which teams turn it is
+    pub(crate) turn: usize, // stores which teams turn it is
+    pub(crate) playing: bool, // stores whether the simulation is running
+    pub(crate) play_speed: f64, // stores the speed when playing as the seconds of delay per full step
 }
 
 // fn print_core(core: &Vec<Instruction>) {
@@ -36,7 +38,7 @@ fn load_core(args: Vec<String>, default_instruction: Instruction) -> (usize, (Ve
     return (coresize, sim::init(args[1].clone(), args[2].clone(), coresize, default_instruction));
 }
 
-// const FRAMETIME: f64 = 1./120.;
+// const FRAMETIME: f64 = 1./60.;
 impl eframe::App for EmarsApp {
     fn update(&mut self, context: &egui::Context, _: &mut eframe::Frame) {
         // let now = Instant::now();
@@ -45,8 +47,6 @@ impl eframe::App for EmarsApp {
 
         // let elapsed = now.elapsed().as_secs_f64();
         // if FRAMETIME > elapsed { sleep(Duration::from_secs_f64(FRAMETIME) - Duration::from_secs_f64(elapsed)) }
-        // let elapsed = now.elapsed().as_secs_f64();
-        // println!("frame took {}s", elapsed)
     }
 }
 
@@ -75,7 +75,7 @@ fn main() {
             viewport: eframe::egui::ViewportBuilder::default().with_title("eMARS").with_maximized(true),
             ..Default::default()
         },
-        Box::new(|_cc| Ok(Box::new(EmarsApp { core, coresize, default_instruction, core_view_size, teams_process_queues: teams_process_queue, turn })))
+        Box::new(|_cc| Ok(Box::new(EmarsApp { core, coresize, default_instruction, core_view_size, teams_process_queues: teams_process_queue, turn , playing: false, play_speed: 1.})))
     ) {
         Err(error) => panic!("Error while rendering UI: {error}"),
         Ok(_) => assert!(true)

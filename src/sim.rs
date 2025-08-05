@@ -5,7 +5,11 @@ use corewars_parser as parser;
 use egui::Label;
 use std::fs::read_to_string;
 use std::collections::{vec_deque, VecDeque};
+use std::thread::{spawn, sleep};
+use std::time::{Duration, Instant};
 use rand::Rng;
+
+use crate::EmarsApp;
 
 #[derive(Clone, Copy)]
 pub struct Process {
@@ -28,10 +32,6 @@ pub struct Instruction {
 }
 
 fn translate_instruction(old_instruction: OtherInstruction, coresize: usize) -> Instruction {
-    let opcode = old_instruction.opcode;
-    let modifier = old_instruction.modifier;
-    let field_a_address_mode = old_instruction.field_a.address_mode;
-    let field_b_address_mode = old_instruction.field_b.address_mode;
     let field_a_value = match old_instruction.field_a.value {
         Literal(n) => negative_mod(n as isize, coresize),
         _ => panic!("corewars_core Value::Label found while translating field A to crate::sim::Field")
@@ -42,14 +42,14 @@ fn translate_instruction(old_instruction: OtherInstruction, coresize: usize) -> 
     };
 
     return Instruction {
-        opcode,
-        modifier,
+        opcode: old_instruction.opcode,
+        modifier: old_instruction.modifier,
         field_a: Field {
-            address_mode: field_a_address_mode,
+            address_mode: old_instruction.field_a.address_mode,
             value: field_a_value,
         },
         field_b: Field {
-            address_mode: field_b_address_mode,
+            address_mode: old_instruction.field_b.address_mode,
             value: field_b_value,
         }
     }
@@ -61,6 +61,16 @@ pub fn negative_mod(n: isize, modulus: usize) -> usize {
         value += modulus as isize;
     }
     return (value % modulus as isize) as usize
+}
+
+fn decrement_mod(n: &mut usize, modulus: usize) {
+    if *n == 0 { *n = modulus - 1; }
+    else { *n -= 1; }
+}
+
+fn increment_mod(n: &mut usize, modulus: usize) {
+    if *n == (modulus - 1) { *n = 0; }
+    else { *n += 1; }
 }
 
 pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, default_instruction: Instruction) -> (Vec<Instruction>, Vec<VecDeque<Process>>) {
@@ -90,7 +100,7 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, def
         }
     }.unwrap();
 
-    let mut core = vec![default_instruction; coresize as usize];
+    let mut core = vec![default_instruction; coresize];
 
     let warrior_a_origin: usize = match warrior_a.program.origin {Some(n) => n as usize, None => 0};
     let warrior_a_instructions = warrior_a.program.instructions;
@@ -99,96 +109,93 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, def
     for i in 0..warrior_a_instructions.len() {
         core[i] = translate_instruction(warrior_a_instructions[i].clone(), coresize);
     }
-    let process_a = Process { team: 0, pointer: warrior_a_origin as usize };
+    let process_a = Process { team: 0, pointer: warrior_a_origin };
 
     let mut rng = rand::rng();
     let warrior_b_origin: usize = match warrior_b.program.origin {Some(n) => n as usize, None => 0}; 
-    let warrior_b_lower_bound = (warrior_a_instructions.len() - warrior_a_origin + coresize/80) as usize;
-    let warrior_b_upper_bound = (coresize - warrior_a_origin - coresize/80) as usize;
+    let warrior_b_lower_bound = warrior_a_instructions.len() - warrior_a_origin + coresize/80;
+    let warrior_b_upper_bound = coresize - warrior_a_origin - coresize/80;
     let warrior_b_offset = rng.random_range(warrior_b_lower_bound..warrior_b_upper_bound) as isize;
     let warrior_b_instructions = warrior_b.program.instructions;
     for i in 0..warrior_b_instructions.len() {
-        signed_index = i as isize - warrior_b_origin as isize + warrior_b_offset as isize;
+        signed_index = i as isize - warrior_b_origin as isize + warrior_b_offset;
         index = negative_mod(signed_index, coresize);
         core[index] = translate_instruction(warrior_b_instructions[i].clone(), coresize);
     }
-    let process_b = Process { team: 1, pointer: (warrior_b_offset) as usize };
+    let process_b = Process { team: 1, pointer: warrior_b_offset as usize };
 
     return (core, vec![VecDeque::from([process_a]), VecDeque::from([process_b])]);
 }
 
-fn step_process(core: &mut Vec<Instruction>, process_queue: &mut VecDeque<Process>) { // steps with the first process in the process queue
+fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mut VecDeque<Process>) { // steps with the first process in the process queue
     
     let process = &mut process_queue[0];
     let instruction = core[process.pointer].clone();
+    let mut dead: bool = false;
 
     // process predecrements for field a
     if instruction.field_a.address_mode == AddressMode::PreDecIndirectA {
-        core[instruction.field_a.value].field_a.value -= 1;
+        decrement_mod(&mut core[(instruction.field_a.value + process.pointer) % coresize].field_a.value, coresize);
     } else if instruction.field_a.address_mode == AddressMode::PreDecIndirectB {
-        core[instruction.field_a.value].field_b.value -= 1;
+        decrement_mod(&mut core[(instruction.field_a.value + process.pointer) % coresize].field_b.value, coresize);
     }
 
     // process predecrements for field b
     if instruction.field_b.address_mode == AddressMode::PreDecIndirectA {
-        core[instruction.field_b.value].field_a.value -= 1;
+        decrement_mod(&mut core[(instruction.field_b.value + process.pointer) % coresize].field_a.value, coresize);
     } else if instruction.field_b.address_mode == AddressMode::PreDecIndirectB {
-        core[instruction.field_b.value].field_b.value -= 1;
+        decrement_mod(&mut core[(instruction.field_b.value + process.pointer) % coresize].field_b.value, coresize);
     }
 
     // big if block for all the opcodes
     if instruction.opcode == Opcode::Dat { // kills the first process (this process)
-        process_queue.remove(0);
+        dead = true;
     } else if instruction.opcode == Opcode::Mov { // moves instruction/values specified by A field to instruction specified by B field
         let source_instruction_pointer: usize; // pointer to first instruction of MOV; the instruction to be copied (relative address)
         let dest_instruction_pointer: usize; // pointer to second instruction of MOV; the instruction to be copied to (relative address)
 
-        // if instruction.field_a.address_mode == AddressMode::Immediate {
-        //     source_instruction_pointer = 0;
-        // } else if instruction.field_a.address_mode == AddressMode::Direct {
-        //     source_instruction_pointer = instruction.field_a.value;
-        // } else if instruction.field_a.address_mode == AddressMode::IndirectA || instruction.field_a.address_mode == AddressMode::PostIncIndirectA || instruction.field_a.address_mode == AddressMode::PreDecIndirectA {
-        //     source_instruction_pointer = old_core[instruction.field_a.value + process.pointer].field_a.value + instruction.field_a.value;
-        // } else if instruction.field_a.address_mode == AddressMode::IndirectB || instruction.field_a.address_mode == AddressMode::PostIncIndirectB || instruction.field_a.address_mode == AddressMode::PreDecIndirectB {
-        //     source_instruction_pointer = old_core[instruction.field_a.value + process.pointer].field_b.value + instruction.field_a.value;
-        // }
-
         match instruction.field_a.address_mode {
             AddressMode::Immediate => 
-            source_instruction_pointer = 0,
+                source_instruction_pointer = 0,
             AddressMode::Direct => 
-            source_instruction_pointer = instruction.field_a.value,
+                source_instruction_pointer = instruction.field_a.value,
             AddressMode::IndirectA | AddressMode::PostIncIndirectA | AddressMode::PreDecIndirectA => 
-            source_instruction_pointer = core[instruction.field_a.value + process.pointer].field_a.value + instruction.field_a.value,
+                source_instruction_pointer = core[(instruction.field_a.value + process.pointer) % coresize].field_a.value + instruction.field_a.value,
             AddressMode::IndirectB | AddressMode::PostIncIndirectB | AddressMode::PreDecIndirectB => 
-            source_instruction_pointer = core[instruction.field_a.value + process.pointer].field_b.value + instruction.field_a.value
+                source_instruction_pointer = core[(instruction.field_a.value + process.pointer) % coresize].field_b.value + instruction.field_a.value
         }
-
-        // if instruction.field_b.address_mode == AddressMode::Immediate {
-        //     dest_instruction_pointer = 0;
-        // } else if instruction.field_b.address_mode == AddressMode::Direct {
-        //     dest_instruction_pointer = instruction.field_b.value;
-        // } else if instruction.field_b.address_mode == AddressMode::IndirectA || instruction.field_b.address_mode == AddressMode::PostIncIndirectA || instruction.field_b.address_mode == AddressMode::PreDecIndirectA {
-        //     dest_instruction_pointer = old_core[instruction.field_b.value + process.pointer].field_a.value + instruction.field_b.value;
-        // } else if instruction.field_b.address_mode == AddressMode::IndirectB || instruction.field_b.address_mode == AddressMode::PostIncIndirectB || instruction.field_b.address_mode == AddressMode::PreDecIndirectB {
-        //     dest_instruction_pointer = old_core[instruction.field_b.value + process.pointer].field_b.value + instruction.field_b.value;
-        // }
 
         match instruction.field_b.address_mode {
             AddressMode::Immediate => 
-            dest_instruction_pointer = 0,
+                dest_instruction_pointer = 0,
             AddressMode::Direct => 
-            dest_instruction_pointer = instruction.field_b.value,
+                dest_instruction_pointer = instruction.field_b.value,
             AddressMode::IndirectA | AddressMode::PostIncIndirectA | AddressMode::PreDecIndirectA => 
-            dest_instruction_pointer = core[instruction.field_b.value + process.pointer].field_a.value + instruction.field_b.value,
+                dest_instruction_pointer = core[(instruction.field_b.value + process.pointer) % coresize].field_a.value + instruction.field_b.value,
             AddressMode::IndirectB | AddressMode::PostIncIndirectB | AddressMode::PreDecIndirectB => 
-            dest_instruction_pointer = core[instruction.field_b.value + process.pointer].field_b.value + instruction.field_b.value
+                dest_instruction_pointer = core[(instruction.field_b.value + process.pointer) % coresize].field_b.value + instruction.field_b.value
         }
 
-        core[dest_instruction_pointer + process.pointer] = core[source_instruction_pointer + process.pointer];
-        process.pointer += 1;
-        process.pointer %= core.len();
-
+        let destination = (dest_instruction_pointer + process.pointer) % coresize;
+        let source = (source_instruction_pointer + process.pointer) % coresize;
+        match instruction.modifier {
+            Modifier::A =>
+                core[destination].field_a.value = core[source].field_a.value,
+            Modifier::B =>
+                core[destination].field_b.value = core[source].field_b.value,
+            Modifier::AB =>
+                core[destination].field_b.value = core[source].field_a.value,
+            Modifier::BA =>
+                core[destination].field_a.value = core[source].field_b.value,
+            Modifier::F =>
+                { core[destination].field_a.value = core[source].field_a.value;
+                core[destination].field_b.value = core[source].field_b.value; },
+            Modifier::X =>
+                { core[destination].field_b.value = core[source].field_a.value;
+                core[destination].field_a.value = core[source].field_b.value; },
+            Modifier::I =>
+                core[destination] = core[source],
+        }
     } else if instruction.opcode == Opcode::Add {
         
     } else if instruction.opcode == Opcode::Sub {
@@ -200,7 +207,7 @@ fn step_process(core: &mut Vec<Instruction>, process_queue: &mut VecDeque<Proces
     } else if instruction.opcode == Opcode::Mod {
         
     } else if instruction.opcode == Opcode::Jmp {
-        
+
     } else if instruction.opcode == Opcode::Jmz {
         
     } else if instruction.opcode == Opcode::Djn {
@@ -223,35 +230,58 @@ fn step_process(core: &mut Vec<Instruction>, process_queue: &mut VecDeque<Proces
 
     // process postincrements for field a
     if instruction.field_a.address_mode == AddressMode::PostIncIndirectA {
-        core[instruction.field_a.value].field_a.value += 1;
+        increment_mod(&mut core[(instruction.field_a.value + process.pointer) % coresize].field_a.value, coresize);
     } else if instruction.field_a.address_mode == AddressMode::PostIncIndirectB {
-        core[instruction.field_a.value].field_b.value += 1;
+        increment_mod(&mut core[(instruction.field_a.value + process.pointer) % coresize].field_b.value, coresize);
     }
 
     // process postincrements for field b
     if instruction.field_b.address_mode == AddressMode::PostIncIndirectA {
-        core[instruction.field_b.value].field_a.value += 1;
+        increment_mod(&mut core[(instruction.field_b.value + process.pointer) % coresize].field_a.value, coresize);
     } else if instruction.field_b.address_mode == AddressMode::PostIncIndirectB {
-        core[instruction.field_b.value].field_b.value += 1;
+        increment_mod(&mut core[(instruction.field_b.value + process.pointer) % coresize].field_b.value, coresize);
+    }
+
+    if dead {
+        process_queue.remove(0);
+    } else {
+        process.pointer += 1;
+        process.pointer %= coresize;
     }
 }
 
-pub fn part_step(core: &mut Vec<Instruction>, teams_process_queues: &mut Vec<VecDeque<Process>>, turn: &mut usize) { // steps the team whose turn it is
+pub fn part_step(core: &mut Vec<Instruction>, coresize: usize, teams_process_queues: &mut Vec<VecDeque<Process>>, turn: &mut usize) { // steps the team whose turn it is
     let mut process_queue = &mut teams_process_queues[*turn];
-    step_process(core, process_queue);
+    step_process(core, coresize, process_queue);
     if process_queue.len() != 0 { 
         process_queue.rotate_left(1); 
         *turn += 1;
         *turn %= teams_process_queues.len();
-    } else { 
+    } else {
         println!("Warrior {turn} is dead!");
         teams_process_queues.remove(*turn);
+        if teams_process_queues.len() >= *turn {
+            *turn = 0;
+        }
     }
 } 
 
-pub fn full_step(core: &mut Vec<Instruction>, teams_process_queues: &mut Vec<VecDeque<Process>>, turn: &mut usize) { // steps until the turn is back to 0
-    part_step(core, teams_process_queues, turn);
-    while *turn != 0 { 
-        part_step(core, teams_process_queues, turn) 
+pub fn full_step(core: &mut Vec<Instruction>, coresize: usize, teams_process_queues: &mut Vec<VecDeque<Process>>, turn: &mut usize) { // steps until the turn is back to 0
+    part_step(core, coresize, teams_process_queues, turn);
+    while *turn != 0 && teams_process_queues.len() > 1 {
+        part_step(core, coresize, teams_process_queues, turn)
     }
 }
+
+// impl EmarsApp {
+//     pub fn play(&mut self) {
+//         while self.playing {
+//             let now = Instant::now();
+//
+//             full_step(&mut self.core, self.coresize, &mut self.teams_process_queues, &mut self.turn);
+//
+//             let elapsed = now.elapsed().as_secs_f64();
+//             if self.play_speed > elapsed { sleep(Duration::from_secs_f64(self.play_speed) - Duration::from_secs_f64(elapsed)) }
+//         }
+//     }
+// }
