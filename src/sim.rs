@@ -55,12 +55,20 @@ fn translate_instruction(old_instruction: OtherInstruction, coresize: usize) -> 
     }
 }
 
-pub fn negative_mod(n: isize, modulus: usize) -> usize {
+fn negative_mod(n: isize, modulus: usize) -> usize {
     let mut value = n.clone();
     while value.is_negative() {
         value += modulus as isize;
     }
     return (value % modulus as isize) as usize
+}
+
+fn minus_mod(a: usize, b: usize, modulus: usize) -> usize {
+    return if b > a {
+        a + modulus - b
+    } else {
+        a - b
+    }
 }
 
 fn decrement_mod(n: &mut usize, modulus: usize) {
@@ -127,8 +135,36 @@ pub fn init(warrior_a_path: String, warrior_b_path: String, coresize: usize, def
     return (core, vec![VecDeque::from([process_a]), VecDeque::from([process_b])]);
 }
 
+fn calculate_source_and_dest_pointers(instruction: &Instruction, core: &Vec<Instruction>, process_pointer: usize, coresize: usize) -> (usize, usize) {
+    let source_instruction_pointer: usize; // pointer to first instruction of MOV; the instruction to be copied (relative address)
+    let dest_instruction_pointer: usize; // pointer to second instruction of MOV; the instruction to be copied to (relative address)
+
+    match instruction.field_a.address_mode {
+        AddressMode::Immediate =>
+            source_instruction_pointer = 0,
+        AddressMode::Direct =>
+            source_instruction_pointer = instruction.field_a.value,
+        AddressMode::IndirectA | AddressMode::PostIncIndirectA | AddressMode::PreDecIndirectA =>
+            source_instruction_pointer = core[(instruction.field_a.value + process_pointer) % coresize].field_a.value + instruction.field_a.value,
+        AddressMode::IndirectB | AddressMode::PostIncIndirectB | AddressMode::PreDecIndirectB =>
+            source_instruction_pointer = core[(instruction.field_a.value + process_pointer) % coresize].field_b.value + instruction.field_a.value
+    }
+
+    match instruction.field_b.address_mode {
+        AddressMode::Immediate =>
+            dest_instruction_pointer = 0,
+        AddressMode::Direct =>
+            dest_instruction_pointer = instruction.field_b.value,
+        AddressMode::IndirectA | AddressMode::PostIncIndirectA | AddressMode::PreDecIndirectA =>
+            dest_instruction_pointer = core[(instruction.field_b.value + process_pointer) % coresize].field_a.value + instruction.field_b.value,
+        AddressMode::IndirectB | AddressMode::PostIncIndirectB | AddressMode::PreDecIndirectB =>
+            dest_instruction_pointer = core[(instruction.field_b.value + process_pointer) % coresize].field_b.value + instruction.field_b.value
+    }
+
+    return (source_instruction_pointer, dest_instruction_pointer);
+}
+
 fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mut VecDeque<Process>) { // steps with the first process in the process queue
-    
     let process = &mut process_queue[0];
     let instruction = core[process.pointer].clone();
     let mut dead: bool = false;
@@ -147,86 +183,131 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
         decrement_mod(&mut core[(instruction.field_b.value + process.pointer) % coresize].field_b.value, coresize);
     }
 
+    let (source_instruction_pointer, dest_instruction_pointer) = calculate_source_and_dest_pointers(&instruction, &core, process.pointer, coresize);
+    let source = (source_instruction_pointer + process.pointer) % coresize;
+    let destination = (dest_instruction_pointer + process.pointer) % coresize;
+
     // big if block for all the opcodes
-    if instruction.opcode == Opcode::Dat { // kills the first process (this process)
-        dead = true;
-    } else if instruction.opcode == Opcode::Mov { // moves instruction/values specified by A field to instruction specified by B field
-        let source_instruction_pointer: usize; // pointer to first instruction of MOV; the instruction to be copied (relative address)
-        let dest_instruction_pointer: usize; // pointer to second instruction of MOV; the instruction to be copied to (relative address)
-
-        match instruction.field_a.address_mode {
-            AddressMode::Immediate => 
-                source_instruction_pointer = 0,
-            AddressMode::Direct => 
-                source_instruction_pointer = instruction.field_a.value,
-            AddressMode::IndirectA | AddressMode::PostIncIndirectA | AddressMode::PreDecIndirectA => 
-                source_instruction_pointer = core[(instruction.field_a.value + process.pointer) % coresize].field_a.value + instruction.field_a.value,
-            AddressMode::IndirectB | AddressMode::PostIncIndirectB | AddressMode::PreDecIndirectB => 
-                source_instruction_pointer = core[(instruction.field_a.value + process.pointer) % coresize].field_b.value + instruction.field_a.value
+    match instruction.opcode {
+        Opcode::Dat => { // kills the first process (this process)
+            dead = true;
+        }
+        Opcode::Mov => { // moves instruction/values specified by A field to instruction specified by B field
+            match instruction.modifier {
+                Modifier::A =>
+                    core[destination].field_a.value = core[source].field_a.value,
+                Modifier::B =>
+                    core[destination].field_b.value = core[source].field_b.value,
+                Modifier::AB =>
+                    core[destination].field_b.value = core[source].field_a.value,
+                Modifier::BA =>
+                    core[destination].field_a.value = core[source].field_b.value,
+                Modifier::F => {
+                    core[destination].field_a.value = core[source].field_a.value;
+                    core[destination].field_b.value = core[source].field_b.value; },
+                Modifier::X => {
+                    core[destination].field_b.value = core[source].field_a.value;
+                    core[destination].field_a.value = core[source].field_b.value; },
+                Modifier::I =>
+                    core[destination] = core[source],
+            }
+        }
+        Opcode::Add => { // adds number(s) specified by A field to instruction specified by B field
+            match instruction.modifier {
+                Modifier::A => {
+                    core[destination].field_a.value += core[source].field_a.value;
+                    core[destination].field_a.value %= coresize;
+                }
+                Modifier::B => {
+                    core[destination].field_b.value += core[source].field_b.value;
+                    core[destination].field_b.value %= coresize;}
+                Modifier::AB => {
+                    core[destination].field_b.value += core[source].field_a.value;
+                    core[destination].field_b.value %= coresize;
+                }
+                Modifier::BA => {
+                    core[destination].field_a.value += core[source].field_b.value;
+                    core[destination].field_a.value %= coresize;
+                }
+                Modifier::F | Modifier::I => {
+                    core[destination].field_a.value += core[source].field_a.value;
+                    core[destination].field_a.value %= coresize;
+                    core[destination].field_b.value += core[source].field_b.value;
+                    core[destination].field_b.value %= coresize;
+                }
+                Modifier::X => {
+                    core[destination].field_a.value += core[source].field_b.value;
+                    core[destination].field_a.value %= coresize;
+                    core[destination].field_b.value += core[source].field_a.value;
+                    core[destination].field_b.value %= coresize;
+                }
+            }
+        }
+        Opcode::Sub => {match instruction.modifier {
+            Modifier::A => {
+                minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
+            }
+            Modifier::B => {
+                minus_mod(core[destination].field_b.value, core[source].field_b.value, coresize);
+            }
+            Modifier::AB => {
+                minus_mod(core[destination].field_b.value, core[source].field_a.value, coresize);
+            }
+            Modifier::BA => {
+                minus_mod(core[destination].field_a.value, core[source].field_b.value, coresize);
+            }
+            Modifier::F | Modifier::I => {
+                minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
+                minus_mod(core[destination].field_b.value, core[source].field_b.value, coresize);
+            }
+            Modifier::X => {
+                minus_mod(core[destination].field_a.value, core[source].field_b.value, coresize);
+                minus_mod(core[destination].field_b.value, core[source].field_a.value, coresize);
+            }
         }
 
-        match instruction.field_b.address_mode {
-            AddressMode::Immediate => 
-                dest_instruction_pointer = 0,
-            AddressMode::Direct => 
-                dest_instruction_pointer = instruction.field_b.value,
-            AddressMode::IndirectA | AddressMode::PostIncIndirectA | AddressMode::PreDecIndirectA => 
-                dest_instruction_pointer = core[(instruction.field_b.value + process.pointer) % coresize].field_a.value + instruction.field_b.value,
-            AddressMode::IndirectB | AddressMode::PostIncIndirectB | AddressMode::PreDecIndirectB => 
-                dest_instruction_pointer = core[(instruction.field_b.value + process.pointer) % coresize].field_b.value + instruction.field_b.value
         }
+        Opcode::Mul => {
 
-        let destination = (dest_instruction_pointer + process.pointer) % coresize;
-        let source = (source_instruction_pointer + process.pointer) % coresize;
-        match instruction.modifier {
-            Modifier::A =>
-                core[destination].field_a.value = core[source].field_a.value,
-            Modifier::B =>
-                core[destination].field_b.value = core[source].field_b.value,
-            Modifier::AB =>
-                core[destination].field_b.value = core[source].field_a.value,
-            Modifier::BA =>
-                core[destination].field_a.value = core[source].field_b.value,
-            Modifier::F =>
-                { core[destination].field_a.value = core[source].field_a.value;
-                core[destination].field_b.value = core[source].field_b.value; },
-            Modifier::X =>
-                { core[destination].field_b.value = core[source].field_a.value;
-                core[destination].field_a.value = core[source].field_b.value; },
-            Modifier::I =>
-                core[destination] = core[source],
         }
-    } else if instruction.opcode == Opcode::Add {
-        
-    } else if instruction.opcode == Opcode::Sub {
-        
-    } else if instruction.opcode == Opcode::Mul {
-        
-    } else if instruction.opcode == Opcode::Div {
-        
-    } else if instruction.opcode == Opcode::Mod {
-        
-    } else if instruction.opcode == Opcode::Jmp {
+        Opcode::Div => {
 
-    } else if instruction.opcode == Opcode::Jmz {
-        
-    } else if instruction.opcode == Opcode::Djn {
-        
-    } else if instruction.opcode == Opcode::Spl {
-        
-    } else if instruction.opcode == Opcode::Cmp || instruction.opcode == Opcode::Seq {
-        
-    } else if instruction.opcode == Opcode::Sne {
-        
-    } else if instruction.opcode == Opcode::Slt {
-        
-    // } else if instruction.opcode == Opcode::Ldp { // excuse me corewa.rs??
-        
-    // } else if instruction.opcode == Opcode::Sdp {
-        
-    } else if instruction.opcode == Opcode::Nop {
-        
-    };
+        }
+        Opcode::Mod => {
+
+        }
+        Opcode::Jmp => {
+
+        }
+        Opcode::Jmz => {
+
+        }
+        Opcode::Jmn => {
+
+        }
+        Opcode::Djn => {
+
+        }
+        Opcode::Spl => {
+
+        }
+        Opcode::Cmp | Opcode::Seq => {
+
+        }
+        Opcode::Sne => {
+
+        }
+        Opcode::Slt => {
+
+        // }
+        // Opcode::Ldp => { // excuse me corewa.rs??
+        //
+        // }
+        // Opcode::Sdp => {
+
+        }
+        Opcode::Nop => { }
+    }
 
     // process postincrements for field a
     if instruction.field_a.address_mode == AddressMode::PostIncIndirectA {

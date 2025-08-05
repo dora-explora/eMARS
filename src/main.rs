@@ -27,7 +27,7 @@ pub(crate) struct EmarsApp {
 //     }
 // }
 
-fn load_core(args: Vec<String>, default_instruction: Instruction) -> (usize, (Vec<Instruction>, Vec<VecDeque<sim::Process>>)) {
+fn load_core(args: Vec<String>, default_instruction: Instruction) -> (usize, (Vec<Instruction>, Vec<VecDeque<Process>>)) {
     let coresize: usize;
     match args.len() {
         ..=2 => panic!("Not enough arguments"),
@@ -72,7 +72,7 @@ fn main() {
     match eframe::run_native(
         "eMARS", 
         eframe::NativeOptions {
-            viewport: eframe::egui::ViewportBuilder::default().with_title("eMARS").with_maximized(true),
+            viewport: egui::ViewportBuilder::default().with_title("eMARS").with_maximized(true),
             ..Default::default()
         },
         Box::new(|_cc| Ok(Box::new(EmarsApp { core, coresize, default_instruction, core_view_size, teams_process_queues: teams_process_queue, turn , playing: false, play_speed: 1.})))
