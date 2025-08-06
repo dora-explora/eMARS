@@ -2,10 +2,9 @@ use std::cmp::max;
 use eframe::egui;
 use egui::*;
 use crate::EmarsApp;
-use crate::sim::{Instruction, Field, part_step, full_step};
-// use std::thread::spawn;
+use crate::sim::{Instruction, Field, full_step};
 
-const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::LIGHT_BLUE, Color32::YELLOW, Color32::RED];
+const TEAM_COLORS: [Color32; 4] = [Color32::GREEN, Color32::from_rgb(0x11, 0xc1, 0xfc), Color32::YELLOW, Color32::RED];
 
 fn display_instruction(instruction: Instruction, coresize: usize) -> String {
     format!(
@@ -154,8 +153,8 @@ pub fn core_view(app: &mut EmarsApp, context: &Context) {
 pub fn sim_manager(app: &mut EmarsApp, context: &Context) {
     Window::new("Simulation Manager")
     .show(context, |ui|{
-        if ui.button("Partial Step").clicked() { part_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn) }
-        if ui.button("Full Step").clicked() { full_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn) }
-        if ui.checkbox(&mut app.playing, "Play").clicked() { /* spawn thread */ }
+        // if ui.button("Partial Step").clicked() { part_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn); }
+        if ui.button("Full Step").clicked() { full_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn); }
+        if ui.button("Play").clicked() { app.press_play(context); }
     });
 }

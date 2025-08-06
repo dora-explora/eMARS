@@ -1,3 +1,5 @@
+;redcode-94b
+;name booom
 ;author dora explora
 ;strategy scans every few spaces for a non-zero instruction and deploys a limited-time bomb
 step equ 700

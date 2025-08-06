@@ -7,6 +7,8 @@ use std::fs::read_to_string;
 use std::collections::{vec_deque, VecDeque};
 use std::thread::{spawn, sleep};
 use std::time::{Duration, Instant};
+use std::thread;
+use std::sync::mpsc::{Sender, Receiver, channel};
 use rand::Rng;
 
 use crate::EmarsApp;
@@ -596,15 +598,56 @@ pub fn full_step(core: &mut Vec<Instruction>, coresize: usize, teams_process_que
     }
 }
 
-// impl EmarsApp {
-//     pub fn play(&mut self) {
-//         while self.playing {
-//             let now = Instant::now();
-//
-//             full_step(&mut self.core, self.coresize, &mut self.teams_process_queues, &mut self.turn);
-//
-//             let elapsed = now.elapsed().as_secs_f64();
-//             if self.play_speed > elapsed { sleep(Duration::from_secs_f64(self.play_speed) - Duration::from_secs_f64(elapsed)) }
-//         }
-//     }
-// }
+fn start_play_thread(old_app: &EmarsApp, context: &egui::Context) {
+    let context_clone = context.clone();
+    let mut app = EmarsApp {
+        core: old_app.core.clone(),
+        coresize: old_app.coresize,
+        default_instruction: old_app.default_instruction,
+        core_view_size: old_app.core_view_size,
+        teams_process_queues: old_app.teams_process_queues.clone(),
+        turn: old_app.turn,
+        playing: old_app.playing,
+        play_delay: old_app.play_delay,
+        last_step: old_app.last_step,
+        state_sender: old_app.state_sender.clone(),
+        state_receiver: channel::<(Vec<Instruction>, Vec<VecDeque<Process>>)>().1
+    };
+    spawn(move || {
+        loop {
+            if !app.process_playing(&context_clone) { break; }
+            sleep(Duration::from_millis(10))
+        }
+    });
+}
+
+impl EmarsApp {
+    fn process_playing(&mut self, context: &egui::Context) -> bool {
+        if self.last_step.elapsed().as_secs_f64() > self.play_delay {
+            let mut dead: bool = false;
+            for _ in 0..((self.last_step.elapsed().as_secs_f64() / self.play_delay) as usize) {
+                full_step(&mut self.core, self.coresize, &mut self.teams_process_queues, &mut self.turn);
+                if self.teams_process_queues.len() <= 1 { dead = true; }
+            }
+            self.last_step = Instant::now();
+            match self.state_sender.send((self.core.clone(), self.teams_process_queues.clone())) {
+                Ok(_) => {},
+                Err(_) => return false,
+            }
+            if dead { return false; }
+            context.request_repaint();
+        }
+        return true;
+    }
+
+    pub fn press_play(&mut self, context: &egui::Context) {
+        if !self.playing {
+            self.playing = true;
+            self.last_step = Instant::now();
+            start_play_thread(&self, &context);
+        } else {
+            self.playing = false;
+            (self.state_sender, self.state_receiver) = channel::<(Vec<Instruction>, Vec<VecDeque<Process>>)>();
+        }
+    }
+}

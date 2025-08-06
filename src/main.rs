@@ -1,8 +1,8 @@
 #![allow(unused_mut)]
 
 use std::env::args;
-// use std::time::{Duration, Instant};
-// use std::thread::sleep;
+use std::time::{Duration, Instant};
+use std::sync::mpsc::{Sender, Receiver, channel};
 use crate::sim::{Instruction, Field, Process};
 use corewars_core::load_file::{Opcode, AddressMode, Modifier};
 use std::collections::VecDeque;
@@ -11,14 +11,17 @@ mod sim;
 mod gui;
 
 pub(crate) struct EmarsApp {
-    pub(crate) core: Vec<Instruction>, // the core.
-    pub(crate) coresize: usize, // stores the size of the core, usually 8000 cells
-    pub(crate) default_instruction: Instruction, // stores the default instruction for the core, usually DAT.F #0, #0
-    pub(crate) core_view_size: usize, // stores the visual size of the core view
-    pub(crate) teams_process_queues: Vec<VecDeque<Process>>, // contains each teams process queue in order
-    pub(crate) turn: usize, // stores which teams turn it is
-    pub(crate) playing: bool, // stores whether the simulation is running
-    pub(crate) play_speed: f64, // stores the speed when playing as the seconds of delay per full step
+    core: Vec<Instruction>, // the core.
+    coresize: usize, // the size of the core, usually 8000 cells
+    default_instruction: Instruction, // the default instruction for the core, usually DAT.F #0, #0
+    core_view_size: usize, // the visual size of the core view
+    teams_process_queues: Vec<VecDeque<Process>>, // each teams process queue in order
+    turn: usize, // which teams turn it is
+    playing: bool, // whether the simulation is playing
+    play_delay: f64, // the speed when playing as the seconds of delay per full step
+    last_step: Instant, //  the time since the last step during play
+    state_sender: Sender<(Vec<Instruction>, Vec<VecDeque<Process>>)>,
+    state_receiver: Receiver<(Vec<Instruction>, Vec<VecDeque<Process>>)>,
 }
 
 // fn print_core(core: &Vec<Instruction>) {
@@ -41,12 +44,13 @@ fn load_core(args: Vec<String>, default_instruction: Instruction) -> (usize, (Ve
 // const FRAMETIME: f64 = 1./60.;
 impl eframe::App for EmarsApp {
     fn update(&mut self, context: &egui::Context, _: &mut eframe::Frame) {
-        // let now = Instant::now();
+        match self.state_receiver.try_recv() {
+            Ok((core, queues)) => { self.core = core; self.teams_process_queues = queues; },
+            Err(_) => {}
+        }
         gui::core_view(self, context);
         gui::sim_manager(self, context);
-
-        // let elapsed = now.elapsed().as_secs_f64();
-        // if FRAMETIME > elapsed { sleep(Duration::from_secs_f64(FRAMETIME) - Duration::from_secs_f64(elapsed)) }
+        if self.playing { context.request_repaint_after(Duration::from_millis(10)) };
     }
 }
 
@@ -66,16 +70,31 @@ fn main() {
     };
     
     let (mut coresize, (mut core, mut teams_process_queue)) = load_core(args, default_instruction);
+    let (play_sender, play_receiver) = channel::<(Vec<Instruction>, Vec<VecDeque<Process>>)>();
     let turn = 0;
 
     let core_view_size = 2;
+    let app = EmarsApp {
+        core,
+        coresize,
+        default_instruction,
+        core_view_size,
+        teams_process_queues: teams_process_queue,
+        turn,
+        playing: false,
+        play_delay: 0.001,
+        last_step: Instant::now(),
+        state_sender: play_sender,
+        state_receiver: play_receiver,
+    };
+
     match eframe::run_native(
         "eMARS", 
         eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default().with_title("eMARS").with_maximized(true),
             ..Default::default()
         },
-        Box::new(|_cc| Ok(Box::new(EmarsApp { core, coresize, default_instruction, core_view_size, teams_process_queues: teams_process_queue, turn , playing: false, play_speed: 1.})))
+        Box::new(|_cc| Ok(Box::new(app)))
     ) {
         Err(error) => panic!("Error while rendering UI: {error}"),
         Ok(_) => assert!(true)

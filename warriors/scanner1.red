@@ -5,6 +5,8 @@
 ;author marcus
 ;date 2006-Nov-27
 
+MINDISTANCE EQU 100
+
 loop		sub.ab	#8,		+1
 ptr		jmz.f	loop,		-MINDISTANCE
 attack		add	#33,		ptr

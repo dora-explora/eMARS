@@ -15,6 +15,7 @@ FSIZE	EQU	9	; field size
 FDIST	EQU	473	; field distance
 
 DSTEP	EQU	5	; dwarf step size
+MINDISTANCE EQU 100
 
 
 fUptr		DAT	#0,	#0	;watch Pointer to Up-field
@@ -50,8 +51,8 @@ dwarfKillSave	DAT.I	#0
 dwarfInit	MOV.I	dwarfKillSave,	dwarfLoop
 		MOV.AB	#-MINDISTANCE,	dUptr
 		MOV.AB	#MINDISTANCE,	dDptr
-dwarfLoop	MOV.I	BOMBu,		@dUptr
-		MOV.I	BOMBd,		@dDptr
+dwarfLoop	MOV.I	FCODEu,		@dUptr
+		MOV.I	FCODEd,		@dDptr
 		SUB.AB	#DSTEP,		dUptr
 		ADD.AB	#DSTEP,		dDptr
 		JMP	dwarfLoop
@@ -61,7 +62,7 @@ alertUfield	MOV.A	#-FDIST-MINDISTANCE,	rlDelta
 
 alertDfield	MOV.A	#FDIST+MINDISTANCE,	rlDelta
 
-relocate	MOV	BOMBd,		dwarfLoop  ; save CPU time
+relocate	MOV	FCODEd,		dwarfLoop  ; save CPU time
 		MOV.AB	#1+LAST-rlSptr,	rlSptr	; initialize pointers
 		MOV.AB	#2+LAST-FIRST,	rlTptr
 		ADD.AB	rlDelta,	rlTptr	; add distance param
@@ -70,9 +71,9 @@ relocLoop	MOV.I	<rlSptr,	<rlTptr
 		JMP	relocLoop
 		JMP	@rlTptr
 
-BOMBu FCODEu	DAT.X	<667,	$766	;watch recognition code Up-field
+FCODEu	DAT.X	<667,	$766	;watch recognition code Up-field
 LAST	; relocate area ends with next instruction
-BOMBd FCODEd	DAT.X	<776,	$677	;watch recognition code Down-field
+FCODEd	DAT.X	<776,	$677	;watch recognition code Down-field
 
 rlDelta		DAT	#0		;watch relocation distance
 dDptr		DAT	#0,	#0	;watch dwarf Down pointer
