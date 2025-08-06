@@ -244,7 +244,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 }
             }
         }
-        Opcode::Sub => {
+        Opcode::Sub => { // subtracts number(s) specified by A field from instruction specified by B field
             match instruction.modifier {
                 Modifier::A => {
                     core[destination].field_a.value = minus_mod(core[destination].field_a.value, core[source].field_a.value, coresize);
@@ -268,7 +268,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 }
             }
         }
-        Opcode::Mul => {
+        Opcode::Mul => { // multiplies number(s) specified by A field into instruction specified by B field
             match instruction.modifier {
                 Modifier::A => {
                     core[destination].field_a.value *= core[source].field_a.value;
@@ -302,7 +302,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 }
             }
         }
-        Opcode::Div => {
+        Opcode::Div => { // divides instruction specified by B field by number(s) specified by A field
             match instruction.modifier {
                 Modifier::A => {
                     if core[source].field_a.value == 0 { dead = true }
@@ -344,7 +344,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 }
             }
         }
-        Opcode::Mod => {
+        Opcode::Mod => { // mods instruction specified by B field by number(s) specified by A field
             match instruction.modifier {
                 Modifier::A => {
                     if core[source].field_a.value == 0 { dead = true }
@@ -386,11 +386,11 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 }
             }
         }
-        Opcode::Jmp => {
+        Opcode::Jmp => { // jumps to address specified by A field
             process.pointer = source;
             step = false;
         }
-        Opcode::Jmz => {
+        Opcode::Jmz => { // jumps to address specified by A field if field(s) specified by B field equals 0
             match instruction.modifier {
                 Modifier::A | Modifier::BA => {
                     if core[destination].field_a.value == 0 {
@@ -412,7 +412,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 },
             }
         }
-        Opcode::Jmn => {
+        Opcode::Jmn => { // jumps to address specified by A field if field(s) specified by B field are not equal to 0
             match instruction.modifier {
                 Modifier::A | Modifier::BA => {
                     if core[destination].field_a.value != 0 {
@@ -434,7 +434,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
                 },
             }
         }
-        Opcode::Djn => {
+        Opcode::Djn => { // decrements field specified by B field, then JMZs
             match instruction.modifier {
                 Modifier::A | Modifier::BA => {
                     decrement_mod(&mut core[destination].field_a.value, coresize);
@@ -463,21 +463,85 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
         Opcode::Spl => {
 
         }
-        Opcode::Cmp | Opcode::Seq => {
+        Opcode::Seq | Opcode::Cmp => { // skips next instruction if instructions specified by A and B field are equal
+            let mut skip: bool = false;
 
+            match instruction.modifier {
+                Modifier::A =>
+                    if core[destination].field_a.value == core[source].field_a.value { skip = true; },
+                Modifier::B =>
+                    if core[destination].field_b.value == core[source].field_b.value { skip = true; },
+                Modifier::AB =>
+                    if core[destination].field_b.value == core[source].field_a.value { skip = true; },
+                Modifier::BA =>
+                    if core[destination].field_a.value == core[source].field_b.value { skip = true; },
+                Modifier::F =>
+                    if core[destination].field_a.value == core[source].field_a.value && core[destination].field_b.value == core[source].field_b.value { skip = true; },
+                Modifier::X =>
+                    if core[destination].field_b.value == core[source].field_a.value && core[destination].field_a.value == core[source].field_b.value { skip = true; },
+                Modifier::I =>
+                    if core[destination] == core[source] { skip = true; },
+            }
+
+            if skip {
+                process.pointer += 2;
+                step = false;
+            }
         }
-        Opcode::Sne => {
+        Opcode::Sne => { // skips next instruction if instructions specified by A and B field are not equal
+            let mut skip: bool = false;
 
+            match instruction.modifier {
+                Modifier::A =>
+                    if core[destination].field_a.value != core[source].field_a.value { skip = true; },
+                Modifier::B =>
+                    if core[destination].field_b.value != core[source].field_b.value { skip = true; },
+                Modifier::AB =>
+                    if core[destination].field_b.value != core[source].field_a.value { skip = true; },
+                Modifier::BA =>
+                    if core[destination].field_a.value != core[source].field_b.value { skip = true; },
+                Modifier::F =>
+                    if core[destination].field_a.value != core[source].field_a.value || core[destination].field_b.value != core[source].field_b.value { skip = true; },
+                Modifier::X =>
+                    if core[destination].field_b.value != core[source].field_a.value || core[destination].field_a.value != core[source].field_b.value { skip = true; },
+                Modifier::I =>
+                    if core[destination] != core[source] { skip = true; },
+            }
+
+            if skip {
+                process.pointer += 2;
+                step = false;
+            }
         }
-        Opcode::Slt => {
+        Opcode::Slt => { // skips next instruction if instructions specified by A is less than by B
+            let mut skip: bool = false;
 
-        // }
+            match instruction.modifier {
+                Modifier::A =>
+                    if core[destination].field_a.value >= core[source].field_a.value { skip = true; },
+                Modifier::B =>
+                    if core[destination].field_b.value >= core[source].field_b.value { skip = true; },
+                Modifier::AB =>
+                    if core[destination].field_b.value >= core[source].field_a.value { skip = true; },
+                Modifier::BA =>
+                    if core[destination].field_a.value >= core[source].field_b.value { skip = true; },
+                Modifier::F | Modifier::I =>
+                    if core[destination].field_a.value >= core[source].field_a.value && core[destination].field_b.value >= core[source].field_b.value { skip = true; },
+                Modifier::X =>
+                    if core[destination].field_b.value >= core[source].field_a.value && core[destination].field_a.value >= core[source].field_b.value { skip = true; },
+            }
+
+            if skip {
+                process.pointer += 2;
+                step = false;
+            }
+        }
         // Opcode::Ldp => { // excuse me corewa.rs??
         //
         // }
         // Opcode::Sdp => {
-
-        }
+        //
+        // }
         Opcode::Nop => { }
     }
 
@@ -497,8 +561,8 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
 
     if dead {
         process_queue.remove(0);
-    } else if step {
-        process.pointer += 1;
+    } else {
+        if step { process.pointer += 1 };
         process.pointer %= coresize;
     }
 }
