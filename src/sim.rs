@@ -168,6 +168,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
     let process = &mut process_queue[0];
     let instruction = core[process.pointer].clone();
     let mut dead: bool = false;
+    let mut step: bool = true;
 
     // process predecrements for field a
     if instruction.field_a.address_mode == AddressMode::PreDecIndirectA {
@@ -386,35 +387,78 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
             }
         }
         Opcode::Jmp => {
-            match instruction.modifier {
-                Modifier::A => {
-
-                },
-                Modifier::B => {
-
-                },
-                Modifier::AB => {
-
-                },
-                Modifier::BA => {
-
-                },
-                Modifier::F | Modifier::I => {
-
-                },
-                Modifier::X => {
-
-                }
-            }
+            process.pointer = source;
+            step = false;
         }
         Opcode::Jmz => {
-
+            match instruction.modifier {
+                Modifier::A | Modifier::BA => {
+                    if core[destination].field_a.value == 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+                Modifier::B | Modifier::AB => {
+                    if core[destination].field_b.value == 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+                Modifier::X | Modifier::F | Modifier::I => {
+                    if core[destination].field_a.value == 0 && core[destination].field_b.value == 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+            }
         }
         Opcode::Jmn => {
-
+            match instruction.modifier {
+                Modifier::A | Modifier::BA => {
+                    if core[destination].field_a.value != 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+                Modifier::B | Modifier::AB => {
+                    if core[destination].field_b.value != 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+                Modifier::X | Modifier::F | Modifier::I => {
+                    if core[destination].field_a.value != 0 || core[destination].field_b.value != 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+            }
         }
         Opcode::Djn => {
-
+            match instruction.modifier {
+                Modifier::A | Modifier::BA => {
+                    decrement_mod(&mut core[destination].field_a.value, coresize);
+                    if core[destination].field_a.value != 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+                Modifier::B | Modifier::AB => {
+                    decrement_mod(&mut core[destination].field_b.value, coresize);
+                    if core[destination].field_b.value != 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+                Modifier::X | Modifier::F | Modifier::I => {
+                    decrement_mod(&mut core[destination].field_a.value, coresize);
+                    decrement_mod(&mut core[destination].field_b.value, coresize);
+                    if core[destination].field_a.value != 0 || core[destination].field_b.value != 0 {
+                        process.pointer = source;
+                        step = false;
+                    }
+                },
+            }
         }
         Opcode::Spl => {
 
@@ -453,7 +497,7 @@ fn step_process(core: &mut Vec<Instruction>, coresize: usize, process_queue: &mu
 
     if dead {
         process_queue.remove(0);
-    } else {
+    } else if step {
         process.pointer += 1;
         process.pointer %= coresize;
     }
