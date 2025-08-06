@@ -1,0 +1,4 @@
+SPL 3
+MOV *0, 1
+DAT #0
+MOV 0, 1
