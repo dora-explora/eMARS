@@ -583,7 +583,8 @@ pub fn part_step(core: &mut Vec<Instruction>, coresize: usize, teams_process_que
         *turn += 1;
         *turn %= teams_process_queues.len();
     } else {
-        println!("A process from team {turn} has died!");
+        println!("Team {turn} has died!");
+        println!("Team {} wins!", (*turn + 1) % teams_process_queues.len());
         teams_process_queues.remove(*turn);
         if teams_process_queues.len() >= *turn {
             *turn = 0;
