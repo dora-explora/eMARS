@@ -598,8 +598,7 @@ pub fn full_step(core: &mut Vec<Instruction>, coresize: usize, teams_process_que
     }
 }
 
-fn start_play_thread(old_app: &EmarsApp, context: &egui::Context) {
-    let context_clone = context.clone();
+fn start_play_thread(old_app: &EmarsApp) {
     let mut app = EmarsApp {
         core: old_app.core.clone(),
         coresize: old_app.coresize,
@@ -611,23 +610,31 @@ fn start_play_thread(old_app: &EmarsApp, context: &egui::Context) {
         play_delay: old_app.play_delay,
         last_step: old_app.last_step,
         state_sender: old_app.state_sender.clone(),
-        state_receiver: channel::<(Vec<Instruction>, Vec<VecDeque<Process>>)>().1
+        state_receiver: channel::<(Vec<Instruction>, Vec<VecDeque<Process>>)>().1,
+        play_step_count: old_app.play_step_count,
+        play_step_limit: old_app.play_step_limit,
     };
     spawn(move || {
         loop {
-            if !app.process_playing(&context_clone) { break; }
+            if !app.process_playing() {
+                println!("death");
+                break;
+            }
+            println!("{}", app.play_step_count);
             sleep(Duration::from_millis(10))
         }
     });
 }
 
 impl EmarsApp {
-    fn process_playing(&mut self, context: &egui::Context) -> bool {
-        if self.last_step.elapsed().as_secs_f64() > self.play_delay {
+    fn process_playing(&mut self) -> bool {
+        if self.last_step.elapsed().as_millis() as usize > self.play_delay {
             let mut dead: bool = false;
-            for _ in 0..((self.last_step.elapsed().as_secs_f64() / self.play_delay) as usize) {
+            for _ in 0..(self.last_step.elapsed().as_millis() as usize / self.play_delay) {
+                if self.play_step_count >= self.play_step_limit { return false; }
                 full_step(&mut self.core, self.coresize, &mut self.teams_process_queues, &mut self.turn);
-                if self.teams_process_queues.len() <= 1 { dead = true; }
+                self.play_step_count += 1;
+                if self.teams_process_queues.len() <= 1 { dead = true; break; }
             }
             self.last_step = Instant::now();
             match self.state_sender.send((self.core.clone(), self.teams_process_queues.clone())) {
@@ -635,16 +642,15 @@ impl EmarsApp {
                 Err(_) => return false,
             }
             if dead { return false; }
-            context.request_repaint();
         }
         return true;
     }
 
-    pub fn press_play(&mut self, context: &egui::Context) {
+    pub fn press_play(&mut self) {
         if !self.playing {
             self.playing = true;
             self.last_step = Instant::now();
-            start_play_thread(&self, &context);
+            start_play_thread(&self);
         } else {
             self.playing = false;
             (self.state_sender, self.state_receiver) = channel::<(Vec<Instruction>, Vec<VecDeque<Process>>)>();

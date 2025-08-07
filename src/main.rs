@@ -18,10 +18,12 @@ pub(crate) struct EmarsApp {
     teams_process_queues: Vec<VecDeque<Process>>, // each teams process queue in order
     turn: usize, // which teams turn it is
     playing: bool, // whether the simulation is playing
-    play_delay: f64, // the speed when playing as the seconds of delay per full step
+    play_delay: usize, // the number of milliseconds per step during play
     last_step: Instant, //  the time since the last step during play
     state_sender: Sender<(Vec<Instruction>, Vec<VecDeque<Process>>)>,
     state_receiver: Receiver<(Vec<Instruction>, Vec<VecDeque<Process>>)>,
+    play_step_count: usize, // number of steps since play started
+    play_step_limit: usize, // number of steps until tie is declared
 }
 
 // fn print_core(core: &Vec<Instruction>) {
@@ -82,10 +84,12 @@ fn main() {
         teams_process_queues: teams_process_queue,
         turn,
         playing: false,
-        play_delay: 0.001,
+        play_delay: 1,
         last_step: Instant::now(),
         state_sender: play_sender,
         state_receiver: play_receiver,
+        play_step_count: 0,
+        play_step_limit: coresize * 10,
     };
 
     match eframe::run_native(

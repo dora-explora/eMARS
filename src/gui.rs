@@ -152,9 +152,14 @@ pub fn core_view(app: &mut EmarsApp, context: &Context) {
 
 pub fn sim_manager(app: &mut EmarsApp, context: &Context) {
     Window::new("Simulation Manager")
-    .show(context, |ui|{
-        // if ui.button("Partial Step").clicked() { part_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn); }
-        if ui.button("Full Step").clicked() { full_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn); }
-        if ui.button("Play").clicked() { app.press_play(context); }
+    .show(context, |ui| {
+        Grid::new("grid").show(ui, |ui| {
+            if ui.button("Step").clicked() { full_step(&mut app.core, app.coresize, &mut app.teams_process_queues, &mut app.turn); }
+            if ui.button("Play").clicked() { app.press_play(); }
+            ui.end_row();
+
+            ui.label("Delay per step in ms: ");
+            ui.add(DragValue::new(&mut app.play_delay).range(1..=250));
     });
+});
 }
