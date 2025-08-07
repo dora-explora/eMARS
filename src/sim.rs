@@ -583,7 +583,7 @@ pub fn part_step(core: &mut Vec<Instruction>, coresize: usize, teams_process_que
         *turn += 1;
         *turn %= teams_process_queues.len();
     } else {
-        println!("Warrior {turn} is dead!");
+        println!("A process from team {turn} has died!");
         teams_process_queues.remove(*turn);
         if teams_process_queues.len() >= *turn {
             *turn = 0;
@@ -616,10 +616,7 @@ fn start_play_thread(old_app: &EmarsApp) {
     };
     spawn(move || {
         loop {
-            if !app.process_playing() {
-                println!("death");
-                break;
-            }
+            if !app.process_playing() { break; }
             println!("{}", app.play_step_count);
             sleep(Duration::from_millis(10))
         }
