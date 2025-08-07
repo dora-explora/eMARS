@@ -617,7 +617,6 @@ fn start_play_thread(old_app: &EmarsApp) {
     spawn(move || {
         loop {
             if !app.process_playing() { break; }
-            println!("{}", app.play_step_count);
             sleep(Duration::from_millis(10))
         }
     });
